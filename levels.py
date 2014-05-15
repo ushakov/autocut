@@ -45,26 +45,7 @@ kStepDown = 1
 kFilename = "wheel-rim.stl"
 kRotate = (0, -90, 0)
 
-if __name__ == "__main__":  
-    print ocl.version()
-    
-    stl = camvtk.STLSurf(kFilename, color=camvtk.green)
-    stl.RotateX(kRotate[0])
-    stl.RotateY(kRotate[1])
-    stl.RotateZ(kRotate[2])
-    print "STL surface read"
-    polydata = stl.src.GetOutput()
-    s= ocl.STLSurf()
-    camvtk.vtkPolyData2OCLSTL(polydata, s)
-    s.rotate(kRotate[0] * math.pi / 180,
-             kRotate[1] * math.pi / 180,
-             kRotate[2] * math.pi / 180)
-    bb = s.getBounds()
-    sx = max(abs(bb[0]), abs(bb[1]))
-    sy = max(abs(bb[1]), abs(bb[2]))
-    ms = max(sx, sy)
-    print "STLSurf with ", s.size(), " triangles"
-
+def GetEssentialLevels(s):
     levels = []
     good = 0
     total = 0
@@ -99,6 +80,9 @@ if __name__ == "__main__":
     if len(essential_levels) == 0 or essential_levels[len(essential_levels) - 1] != kBottom:
         essential_levels.append(kBottom)
 
+    return essential_levels
+
+def GetWaterlines(s, essential_levels):
     cutter = ocl.CylCutter(3.175, 20)
     level_loops = []
     for l in essential_levels:
@@ -111,11 +95,9 @@ if __name__ == "__main__":
         wl.run2()
         level_loops.append(wl.getLoops())
 
-    print "levels:", [ "%s" % l for l in essential_levels ]
-    for i, lev in enumerate(essential_levels):
-        lengths = [str(len(loop)) for loop in level_loops[i]]
-        print "L%02d@%smm: %s" % (i, lev, ",".join(lengths))
+    return level_loops
 
+def PopulateIntermediateLevels(essential_levels, level_loops):
     last_loops = level_loops[len(level_loops)-1]
 
     cut_levels = []
@@ -137,6 +119,37 @@ if __name__ == "__main__":
             current -= kStepDown
         cut_levels.append(bottom)
         cut_loops.append(loops)
+
+    return cut_levels, cut_loops
+
+if __name__ == "__main__":
+    print ocl.version()
+
+    stl = camvtk.STLSurf(kFilename, color=camvtk.green)
+    stl.RotateX(kRotate[0])
+    stl.RotateY(kRotate[1])
+    stl.RotateZ(kRotate[2])
+    print "STL surface read"
+    polydata = stl.src.GetOutput()
+    s= ocl.STLSurf()
+    camvtk.vtkPolyData2OCLSTL(polydata, s)
+    s.rotate(kRotate[0] * math.pi / 180,
+             kRotate[1] * math.pi / 180,
+             kRotate[2] * math.pi / 180)
+    bb = s.getBounds()
+    sx = max(abs(bb[0]), abs(bb[1]))
+    sy = max(abs(bb[1]), abs(bb[2]))
+    ms = max(sx, sy)
+    print "STLSurf with ", s.size(), " triangles"
+
+    essential_levels = GetEssentialLevels(s)
+    level_loops = GetWaterlines(s, essential_levels)
+
+    for i, lev in enumerate(essential_levels):
+        lengths = [str(len(loop)) for loop in level_loops[i]]
+        print "L%02d@%smm: %s" % (i, lev, ",".join(lengths))
+
+    cut_levels, cut_loops = PopulateIntermediateLevels(essential_levels, level_loops)
 
     all_loops = []
     for loops in cut_loops:
