@@ -1,0 +1,8 @@
+# Autocut -- automatic toolpath generator for 2.5D solids
+
+Note! This is prototype, don't expect it to work at all.
+
+## Requirements:
+
+* opencamlib
+
