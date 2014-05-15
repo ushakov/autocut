@@ -55,10 +55,21 @@ def drawLoops(myscreen, loops, loopcolor):
                 myscreen.addActor( camvtk.Sphere(center=(p.x,p.y,p.z),radius=0.1,color=camvtk.green) )
         nloop = nloop+1
 
+# def drawLoops(myscreen, loops, color):
+#     points = []
+#     for loop in loops:
+#         for p in loop:
+#             points.append(p)
+#     myscreen.addActor(camvtk.PointCloud(points))
+
+kSimplifyTolerance = 0.2
+
 def Simplify(plist):
     ret = []
     horizon = 5
     i = 0
+    skips = 0
+    maxskip = 0
     ret.append(plist[0])
     # inv.: i'th point is added to the ret list
     while i + horizon < len(plist):
@@ -70,7 +81,7 @@ def Simplify(plist):
         for p in plist[i:i+horizon]:
             r = p - p1
             dp = r.dot(v)
-            if dp > 0.1:
+            if dp > kSimplifyTolerance:
                 good = False
         if not good:
             ret.append(plist[i+1])
@@ -80,16 +91,19 @@ def Simplify(plist):
         while good and f + 1 < len(plist):
             r = plist[f+1] - p1
             dp = r.dot(v)
-            if dp > 0.1:
+            if dp > kSimplifyTolerance:
                 good = False
             else:
                 f += 1
         ret.append(plist[f])
+        maxskip = max(maxskip, f - i)
+        skips += 1
         i = f
     i += 1
     while i < len(plist):
         ret.append(plist[i])
         i += 1
+    print "Simplify: %d->%d, skips=%d maxskip=%d" % (len(plist),len(ret),skips,maxskip)
     return ret
             
 kTop = 14
@@ -143,6 +157,8 @@ if __name__ == "__main__":
         i = j
     essential_levels.sort(reverse=True)
     essential_levels = [l for l in essential_levels if l >= kBottom]
+    if len(essential_levels) == 0 or essential_levels[len(essential_levels) - 1] != kBottom:
+        essential_levels.append(kBottom)
 
     cutter = ocl.CylCutter(3.175, 20)
     all_loops = []
@@ -156,8 +172,9 @@ if __name__ == "__main__":
         wl.run2()
         for lp in wl.getLoops():
             simple = Simplify(lp)
-            print "Simplify", len(lp), "->", len(simple)
             all_loops.append(simple)
+
+    print "levels:", [ "%s" % l for l in essential_levels ]
     
     myscreen = camvtk.VTKScreen()    
     myscreen.addActor(stl)
