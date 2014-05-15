@@ -1,3 +1,5 @@
+#!/usr/bin/python
+
 import ocl
 import camvtk
 import time
@@ -91,7 +93,7 @@ if __name__ == "__main__":
         essential_levels.append(kBottom)
 
     cutter = ocl.CylCutter(3.175, 20)
-    all_loops = []
+    level_loops = []
     for l in essential_levels:
         print "level=", l
         wl = ocl.Waterline()
@@ -100,10 +102,40 @@ if __name__ == "__main__":
         wl.setSampling(0.02)
         wl.setZ(l + 0.001)
         wl.run2()
-        for lp in wl.getLoops():
-            all_loops.append(lp)
+        level_loops.append(wl.getLoops())
 
     print "levels:", [ "%s" % l for l in essential_levels ]
+    for i, lev in enumerate(essential_levels):
+        lengths = [str(len(loop)) for loop in level_loops[i]]
+        print "L%02d@%smm: %s" % (i, lev, ",".join(lengths))
+
+    last_loops = level_loops[len(level_loops)-1]
+
+    kStepDown = 1
+    cut_levels = []
+    cut_loops = []
+    for i in range(len(essential_levels)-1):
+        top = essential_levels[i]
+        bottom = essential_levels[i+1]
+        loops = level_loops[i+1]
+        current = top
+        while current > bottom:
+            curloops = []
+            for loop in loops + last_loops:
+                curloop = []
+                for point in loop:
+                    curloop.append(ocl.Point(point.x, point.y, current))
+                curloops.append(curloop)
+            cut_levels.append(current)
+            cut_loops.append(curloops)
+            current -= kStepDown
+        cut_levels.append(bottom)
+        cut_loops.append(loops)
+
+    all_loops = []
+    for loops in cut_loops:
+        all_loops += loops
+
     
     myscreen = camvtk.VTKScreen()    
     myscreen.addActor(stl)
