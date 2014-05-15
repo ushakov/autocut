@@ -40,18 +40,25 @@ def drawLoops(myscreen, loops, color):
             
 kTop = 14
 kBottom = 0
+kStepDown = 1
 
+kFilename = "wheel-rim.stl"
+kRotate = (0, -90, 0)
 
 if __name__ == "__main__":  
     print ocl.version()
     
-    stl = camvtk.STLSurf("wheel-rim.stl", color=camvtk.green)
-    stl.RotateY(-90)
+    stl = camvtk.STLSurf(kFilename, color=camvtk.green)
+    stl.RotateX(kRotate[0])
+    stl.RotateY(kRotate[1])
+    stl.RotateZ(kRotate[2])
     print "STL surface read"
     polydata = stl.src.GetOutput()
     s= ocl.STLSurf()
     camvtk.vtkPolyData2OCLSTL(polydata, s)
-    s.rotate(0,-math.pi/2,0)
+    s.rotate(kRotate[0] * math.pi / 180,
+             kRotate[1] * math.pi / 180,
+             kRotate[2] * math.pi / 180)
     bb = s.getBounds()
     sx = max(abs(bb[0]), abs(bb[1]))
     sy = max(abs(bb[1]), abs(bb[2]))
@@ -111,7 +118,6 @@ if __name__ == "__main__":
 
     last_loops = level_loops[len(level_loops)-1]
 
-    kStepDown = 1
     cut_levels = []
     cut_loops = []
     for i in range(len(essential_levels)-1):
