@@ -5,6 +5,7 @@ import camvtk
 import time
 import vtk
 import math
+import area
 
 class TriangleProcessor(object):
     def __init__(self, tr):
@@ -31,16 +32,54 @@ def seq(pl):
         ret.append([p.x, p.y, p.z])
     return ret
 
-def drawLoops(myscreen, loops, color):
+def drawLoops(myscreen, loops):
     points = []
     for loop in loops:
         for p in loop:
             points.append(p)
     myscreen.addActor(camvtk.PointCloud(points))
+
+def IsNegative(prev, vertex):
+    p1 = prev - vertex.c
+    p2 = vertex.p - vertex.c
+
+    smaller_angle_ccw = (p1 ^ p2 > 0)
+    if vertex.type == 1:  # CCW arc, positive iff smaller angle is CCW
+        return smaller_angle_ccw
+    else:  # CW arc, positive if smaller angle is CW
+        return not smaller_angle_ccw
+
+def drawCurve(myscreen, curve, z):
+    vertices = curve.getVertices()
+    current = vertices[0].p
+    print "start at (%.2f, %.2f) z=%.2f" % (current.x, current.y, z)
+    for v in vertices[1:]:
+        if v.type == 0:
+            print "line to (%.2f,%.2f) z=%.2f" % (v.p.x, v.p.y, z)
+            myscreen.addActor(camvtk.Line(p1=(current.x, current.y, z), p2 = (v.p.x, v.p.y, z)))
+        else:
+            r = math.hypot(v.p.x-v.c.x, v.p.y-v.c.y)
+            print "arc to (%.2f,%.2f) center=(%.2f,%.2f) r=%.2f z=%.2f" % (v.p.x, v.p.y, v.c.x, v.c.y, r, z)
+            src = vtk.vtkArcSource()
+            src.SetCenter(v.c.x, v.c.y, z)
+            src.SetPoint1(current.x, current.y, z)
+            src.SetPoint2(v.p.x, v.p.y, z)
+            src.SetResolution(20)
+            src.SetNegative(IsNegative(current, v))
+            mapper = vtk.vtkPolyDataMapper()
+            mapper.SetInput(src.GetOutput())
+            actor = camvtk.CamvtkActor()
+            actor.SetMapper(mapper)
+            myscreen.addActor(actor)
+        current = v.p
+
             
 kTop = 14
-kBottom = 0
+kBottom = 9
 kStepDown = 1
+kStepOver = 1
+kVerticalTolerance = 0.05
+kToolDiameter = 3.175
 
 kFilename = "wheel-rim.stl"
 kRotate = (0, -90, 0)
@@ -83,7 +122,7 @@ def GetEssentialLevels(s):
     return essential_levels
 
 def GetWaterlines(s, essential_levels):
-    cutter = ocl.CylCutter(3.175, 20)
+    cutter = ocl.CylCutter(kToolDiameter, 20)
     level_loops = []
     for l in essential_levels:
         print "level=", l
@@ -91,41 +130,91 @@ def GetWaterlines(s, essential_levels):
         wl.setSTL(s)
         wl.setCutter(cutter)
         wl.setSampling(0.02)
-        wl.setZ(l + 0.001)
+        wl.setZ(l)
         wl.run2()
         level_loops.append(wl.getLoops())
 
     return level_loops
 
-def PopulateIntermediateLevels(essential_levels, level_loops):
-    last_loops = level_loops[len(level_loops)-1]
+def MakeArea(loops):
+    ar = area.Area()
+    for loop in loops:
+        curve = area.Curve()
+        for p in loop:
+            curve.append(area.Point(p.x, p.y))
+        ar.append(curve)
+    ar.Reorder()
+    return ar
 
-    cut_levels = []
-    cut_loops = []
-    for i in range(len(essential_levels)-1):
-        top = essential_levels[i]
-        bottom = essential_levels[i+1]
-        loops = level_loops[i+1]
-        current = top
-        while current > bottom:
-            curloops = []
-            for loop in loops + last_loops:
-                curloop = []
-                for point in loop:
-                    curloop.append(ocl.Point(point.x, point.y, current))
-                curloops.append(curloop)
-            cut_levels.append(current)
-            cut_loops.append(curloops)
-            current -= kStepDown
-        cut_levels.append(bottom)
-        cut_loops.append(loops)
+def ConvertLoopsToAreas(level_loops):
+    last_area = MakeArea(level_loops[len(level_loops) - 1])
+    ret = []
+    for loops in level_loops:
+        ar = MakeArea(loops)
+        for curve in last_area.getCurves():
+            ar.append(curve)
+        ar.Reorder()
+        ret.append(ar)
+    return ret
 
-    return cut_levels, cut_loops
+def MakePocket(arealist, ar):
+    if ar.num_curves() == 0:
+        return
+    arealist.insert(0, ar)
+    off = area.Area(ar)
+    print "---"
+    off.Offset(kStepOver)
+    for curve in off.getCurves():
+        a2 = area.Area()
+        a2.append(curve)
+        MakePocket(arealist, a2)
 
-if __name__ == "__main__":
+def MakeCompleteToolpath(levels, loops):
+    areas = ConvertLoopsToAreas(loops)
+    tps = []
+    for ar in areas:
+        al = []
+        MakePocket(al, ar)
+        tps += [ ar.getCurves() for ar in al ]
+    return levels, tps
+
+# def PopulateIntermediateLevels(essential_levels, level_loops):
+#     last_loops = level_loops[len(level_loops)-1]
+
+#     cut_levels = []
+#     cut_loops = []
+#     current = kTop
+#     current_loops = last_loops
+#     next_level_idx = 0
+#     while current > kBottom - kVerticalTolerance:
+#         cut_levels.append(current)
+#         cut_loops.append(current_loops)
+#         current -= kStepDown
+
+#         if (next_level_idx < len(essential_levels) and
+#             current < essential_levels[next_level_idx] + kVerticalTolerance/2):
+#             cut_levels.append(essential_levels[next_level_idx])
+#             cut_loops.append(current_loops)
+#             if next_level_idx == len(essential_levels) - 1:
+#                 current_loops = last_loops
+#             else:
+#                 current_loops = level_loops[next_level_idx] + last_loops
+#             if current > essential_levels[next_level_idx] - kVerticalTolerance/2:
+#                 current -= kStepDown
+#             next_level_idx += 1
+
+#     return cut_levels, cut_loops
+
+# def MakePocket(loops, step):
+#     ar = MakeArea(loops)
+#     tp = ar.MakePocketToolpath(3.175, 0, step, True, False, 0)
+#     return tp
+
+if __name__ == "__main__": 
     print ocl.version()
-
+    
     stl = camvtk.STLSurf(kFilename, color=camvtk.green)
+    stl.SetOpacity(0.2)
     stl.RotateX(kRotate[0])
     stl.RotateY(kRotate[1])
     stl.RotateZ(kRotate[2])
@@ -149,17 +238,34 @@ if __name__ == "__main__":
         lengths = [str(len(loop)) for loop in level_loops[i]]
         print "L%02d@%smm: %s" % (i, lev, ",".join(lengths))
 
-    cut_levels, cut_loops = PopulateIntermediateLevels(essential_levels, level_loops)
+    # cut_levels, cut_loops = PopulateIntermediateLevels(essential_levels, level_loops)
+    # print "------------------------"
+    # print "cut levels: %d, cut_loops: %d" % (len(cut_levels), len(cut_loops))
+    # for i, lev in enumerate(cut_levels):
+    #     lengths = [str(len(loop)) for loop in cut_loops[i]]
+    #     if i > 0:
+    #         print "L%02d@%smm: %s (d=%s)" % (i, lev, len(lengths), cut_levels[i-1]-lev)
+    #     else:
+    #         print "L%02d@%smm: %s" % (i, lev, len(lengths))
 
-    all_loops = []
-    for loops in cut_loops:
-        all_loops += loops
+    # print "------------------------"
 
-    
+    #    pocket_tps = [ MakePocket(loops, kStepOver) for loops in cut_loops ]
+    #    pocket_tps = [ MakePocket(loops, kStepOver) for loops in level_loops]
+
+    cut_levels, cut_paths = MakeCompleteToolpath(essential_levels, level_loops)
+
     myscreen = camvtk.VTKScreen()    
     myscreen.addActor(stl)
 
-    drawLoops(myscreen, all_loops, camvtk.red)
+    for i, lev in enumerate(cut_levels):
+       tp = cut_paths[i]
+       for c in tp:
+           drawCurve(myscreen, c, lev)
+    # all_loops = []
+    # for loops in level_loops:
+    #     all_loops += loops
+    # drawLoops(myscreen, all_loops)
     
     myscreen.camera.SetPosition(3, 23, 15)
     myscreen.camera.SetFocalPoint(5, 5, 0)
