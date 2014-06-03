@@ -65,7 +65,7 @@ def drawCurve(myscreen, curve, z):
             src.SetPoint1(current.x, current.y, z)
             src.SetPoint2(v.p.x, v.p.y, z)
             src.SetResolution(20)
-            src.SetNegative(IsNegative(current, v))
+            src.SetNegative(not IsNegative(current, v))
             mapper = vtk.vtkPolyDataMapper()
             mapper.SetInput(src.GetOutput())
             actor = camvtk.CamvtkActor()
@@ -75,7 +75,7 @@ def drawCurve(myscreen, curve, z):
 
             
 kTop = 14
-kBottom = 9
+kBottom = 2
 kStepDown = 1
 kStepOver = 1
 kVerticalTolerance = 0.05
@@ -143,40 +143,62 @@ def MakeArea(loops):
         for p in loop:
             curve.append(area.Point(p.x, p.y))
         ar.append(curve)
+    ar.FitArcs()
     ar.Reorder()
     return ar
 
 def ConvertLoopsToAreas(level_loops):
-    last_area = MakeArea(level_loops[len(level_loops) - 1])
     ret = []
-    for loops in level_loops:
+    for i, loops in enumerate(level_loops):
+        print "Processing", i, "th level:"
         ar = MakeArea(loops)
-        for curve in last_area.getCurves():
-            ar.append(curve)
-        ar.Reorder()
+        print "Area made"
         ret.append(ar)
+    print "Done processing"
     return ret
 
-def MakePocket(arealist, ar):
-    if ar.num_curves() == 0:
-        return
-    arealist.insert(0, ar)
-    off = area.Area(ar)
-    print "---"
-    off.Offset(kStepOver)
-    for curve in off.getCurves():
-        a2 = area.Area()
-        a2.append(curve)
-        MakePocket(arealist, a2)
+def MakeCutAreas(levels, areas):
+    outer_bound = area.Area(areas[len(areas) - 1])
+    outer_bound.Offset(-3.175)
+    cut_levels = [ kTop ]
+    cut_areas = [ outer_bound ]
+    for i, ar in enumerate(areas):
+        for curve in outer_bound.getCurves():
+            ar.append(curve)
+        ar.Reorder()
+        cut_areas.append(ar)
+        cut_levels.append(levels[i])
+    return cut_levels, cut_areas
 
-def MakeCompleteToolpath(levels, loops):
-    areas = ConvertLoopsToAreas(loops)
+def MakeLevelToolpaths(levels, areas):
     tps = []
-    for ar in areas:
-        al = []
-        MakePocket(al, ar)
-        tps += [ ar.getCurves() for ar in al ]
+    for i, ar in enumerate(areas):
+        print "Making", i, "th toolpath at", levels[i]
+        tp = ar.MakePocketToolpath(3.175, -3.175, kStepOver, True, False, 0)
+        tps.append(tp)
+        print " -- Got", len(tp), "curves"
+    print "Out:", len(tps), "levels"
     return levels, tps
+
+def MakeCompleteToolpath(tp_levels, tp_paths):
+    cur_lev = tp_levels[0]
+    cur_tp = tp_paths[0]
+    next_levels_idx = 1
+
+    levs = [ ]
+    tps = [ ]
+    while cur_lev > kBottom - kVerticalTolerance:
+        levs.append(cur_lev)
+        tps.append(cur_tp)
+
+        cur_lev -= kStepDown
+
+        if (next_levels_idx < len(tp_levels) and
+            cur_lev < tp_levels[next_levels_idx] + kVerticalTolerance):
+            cur_tp = tp_paths[next_levels_idx]
+            cur_lev = tp_levels[next_levels_idx]
+            next_levels_idx += 1
+    return levs, tps
 
 # def PopulateIntermediateLevels(essential_levels, level_loops):
 #     last_loops = level_loops[len(level_loops)-1]
@@ -253,13 +275,17 @@ if __name__ == "__main__":
     #    pocket_tps = [ MakePocket(loops, kStepOver) for loops in cut_loops ]
     #    pocket_tps = [ MakePocket(loops, kStepOver) for loops in level_loops]
 
-    cut_levels, cut_paths = MakeCompleteToolpath(essential_levels, level_loops)
+    level_areas = ConvertLoopsToAreas(level_loops)
+    cut_levels, cut_areas = MakeCutAreas(essential_levels, level_areas)
+    tp_levels, tp_paths = MakeLevelToolpaths(cut_levels, cut_areas)
+    tp_levels, tp_paths = MakeCompleteToolpath(tp_levels, tp_paths)
 
     myscreen = camvtk.VTKScreen()    
     myscreen.addActor(stl)
 
-    for i, lev in enumerate(cut_levels):
-       tp = cut_paths[i]
+    for i, lev in enumerate(tp_levels):
+       tp = tp_paths[i]
+       print "Lev", i, "@", lev, ":", len(tp), "curves"
        for c in tp:
            drawCurve(myscreen, c, lev)
     # all_loops = []
