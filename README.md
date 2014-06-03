@@ -32,3 +32,7 @@ The following patch should be applied:
 To do that, compile like this:
 
     make -f Makefileclipper
+
+### Licensing
+
+Opencamlib is GPLv3, libarea is BSD, so this work is GPLv3 also.
