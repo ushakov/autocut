@@ -6,6 +6,24 @@ import time
 import vtk
 import math
 import area
+import ngc_writer as nw
+
+kTop = 14
+kBottom = 2
+kStepDown = 1
+kStepOver = 1
+kVerticalTolerance = 0.05
+kToolDiameter = 3.175
+
+kClearanceHeight = kTop + 5
+kFeedHeight = kTop + 2
+kFeed = 500
+kPlungeFeed = 200 
+
+kFilename = "wheel-rim.stl"
+kRotate = (0, -90, 0)
+
+kOutputFileName = "out.ngc"
 
 class TriangleProcessor(object):
     def __init__(self, tr):
@@ -72,17 +90,6 @@ def drawCurve(myscreen, curve, z):
             actor.SetMapper(mapper)
             myscreen.addActor(actor)
         current = v.p
-
-            
-kTop = 14
-kBottom = 2
-kStepDown = 1
-kStepOver = 1
-kVerticalTolerance = 0.05
-kToolDiameter = 3.175
-
-kFilename = "wheel-rim.stl"
-kRotate = (0, -90, 0)
 
 def GetEssentialLevels(s):
     levels = []
@@ -200,37 +207,48 @@ def MakeCompleteToolpath(tp_levels, tp_paths):
             next_levels_idx += 1
     return levs, tps
 
-# def PopulateIntermediateLevels(essential_levels, level_loops):
-#     last_loops = level_loops[len(level_loops)-1]
+class FileWriter(object):
+    def __init__(self, fn):
+        self.f = open(fn, "w")
 
-#     cut_levels = []
-#     cut_loops = []
-#     current = kTop
-#     current_loops = last_loops
-#     next_level_idx = 0
-#     while current > kBottom - kVerticalTolerance:
-#         cut_levels.append(current)
-#         cut_loops.append(current_loops)
-#         current -= kStepDown
+    def Print(self, *x):
+        s = [ str(t) for t in x ]
+        self.f.write(" ".join(s))
+        self.f.write('\n')
 
-#         if (next_level_idx < len(essential_levels) and
-#             current < essential_levels[next_level_idx] + kVerticalTolerance/2):
-#             cut_levels.append(essential_levels[next_level_idx])
-#             cut_loops.append(current_loops)
-#             if next_level_idx == len(essential_levels) - 1:
-#                 current_loops = last_loops
-#             else:
-#                 current_loops = level_loops[next_level_idx] + last_loops
-#             if current > essential_levels[next_level_idx] - kVerticalTolerance/2:
-#                 current -= kStepDown
-#             next_level_idx += 1
+    def Close(self):
+        self.f.close()
 
-#     return cut_levels, cut_loops
+def OutputGCode(lev, paths, fn):
+    nw.clearance_height = kClearanceHeight
+    nw.feed_height = kFeedHeight
+    nw.feed = kFeed
+    nw.plunge_feed = kPlungeFeed
 
-# def MakePocket(loops, step):
-#     ar = MakeArea(loops)
-#     tp = ar.MakePocketToolpath(3.175, 0, step, True, False, 0)
-#     return tp
+    nw.writer = FileWriter(fn)
+
+    nw.comment("============ START G-CODE ===============")
+    nw.preamble()
+    nw.pen_up()
+    pairs = zip(lev, paths)
+    for lev, path in sorted(pairs, key = lambda(p): -p[0]):
+        nw.comment("level=%s" % lev)
+        for curve in path:
+            vertices = curve.getVertices()
+            current = vertices[0].p
+            nw.xy_rapid_to(current.x, current.y)
+            nw.pen_down(lev)
+            for v in vertices[1:]:
+                if v.type == 0:
+                    nw.line_to(v.p.x, v.p.y, lev)
+                else:
+                    r = math.hypot(v.p.x - v.c.x, v.p.y - v.c.y)
+                    nw.xy_arc_to(v.p.x, v.p.y, r, v.c.x, v.c.y, v.type != 1)
+            nw.pen_up()
+    nw.postamble()
+    nw.comment("============ END G-CODE ===============")
+    
+    nw.writer.Close()
 
 if __name__ == "__main__": 
     print ocl.version()
@@ -279,6 +297,8 @@ if __name__ == "__main__":
     cut_levels, cut_areas = MakeCutAreas(essential_levels, level_areas)
     tp_levels, tp_paths = MakeLevelToolpaths(cut_levels, cut_areas)
     tp_levels, tp_paths = MakeCompleteToolpath(tp_levels, tp_paths)
+
+    OutputGCode(tp_levels, tp_paths, kOutputFileName)
 
     myscreen = camvtk.VTKScreen()    
     myscreen.addActor(stl)
