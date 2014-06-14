@@ -8,6 +8,7 @@ Requirements:
 
 * opencamlib (patched)
 * libarea (compiled with clipper)
+* google protobug library (including python libs)
 
 Comments
 --------
