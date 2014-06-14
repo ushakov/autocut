@@ -1,5 +1,6 @@
 #!/usr/bin/python
 
+import sys
 import ocl
 import camvtk
 import time
@@ -8,22 +9,24 @@ import math
 import area
 import ngc_writer as nw
 
-kTop = 14
-kBottom = 2
-kStepDown = 1
-kStepOver = 1
-kVerticalTolerance = 0.05
-kToolDiameter = 3.175
+import config_pb2
+from google.protobuf import text_format
 
-kClearanceHeight = kTop + 5
-kFeedHeight = kTop + 2
-kFeed = 500
-kPlungeFeed = 200 
+config = None
 
-kFilename = "wheel-rim.stl"
-kRotate = (0, -90, 0)
+def ReadConfig(fn):
+    basename = fn
+    if fn.endswith(".conf"):
+        basename = fn[:len(fn)-len(".conf")]
 
-kOutputFileName = "out.ngc"
+    with open(fn, "r") as f:
+        content = f.read()
+    global config
+    config = config_pb2.Config()
+
+    config.in_filename = basename + ".stl"
+    config.out_filename = basename + ".ngc"
+    text_format.Merge(content, config)
 
 class TriangleProcessor(object):
     def __init__(self, tr):
@@ -70,14 +73,14 @@ def IsNegative(prev, vertex):
 def drawCurve(myscreen, curve, z):
     vertices = curve.getVertices()
     current = vertices[0].p
-    print "start at (%.2f, %.2f) z=%.2f" % (current.x, current.y, z)
+    #print "start at (%.2f, %.2f) z=%.2f" % (current.x, current.y, z)
     for v in vertices[1:]:
         if v.type == 0:
-            print "line to (%.2f,%.2f) z=%.2f" % (v.p.x, v.p.y, z)
+            #print "line to (%.2f,%.2f) z=%.2f" % (v.p.x, v.p.y, z)
             myscreen.addActor(camvtk.Line(p1=(current.x, current.y, z), p2 = (v.p.x, v.p.y, z)))
         else:
             r = math.hypot(v.p.x-v.c.x, v.p.y-v.c.y)
-            print "arc to (%.2f,%.2f) center=(%.2f,%.2f) r=%.2f z=%.2f" % (v.p.x, v.p.y, v.c.x, v.c.y, r, z)
+            #print "arc to (%.2f,%.2f) center=(%.2f,%.2f) r=%.2f z=%.2f" % (v.p.x, v.p.y, v.c.x, v.c.y, r, z)
             src = vtk.vtkArcSource()
             src.SetCenter(v.c.x, v.c.y, z)
             src.SetPoint1(current.x, current.y, z)
@@ -122,14 +125,14 @@ def GetEssentialLevels(s):
         essential_levels.append(l0)
         i = j
     essential_levels.sort(reverse=True)
-    essential_levels = [l for l in essential_levels if l >= kBottom]
-    if len(essential_levels) == 0 or essential_levels[len(essential_levels) - 1] != kBottom:
-        essential_levels.append(kBottom)
+    essential_levels = [l for l in essential_levels if l >= config.bottom]
+    if len(essential_levels) == 0 or essential_levels[len(essential_levels) - 1] != config.bottom:
+        essential_levels.append(config.bottom)
 
     return essential_levels
 
 def GetWaterlines(s, essential_levels):
-    cutter = ocl.CylCutter(kToolDiameter, 20)
+    cutter = ocl.CylCutter(config.tool_diameter, 20)
     level_loops = []
     for l in essential_levels:
         print "level=", l
@@ -167,7 +170,7 @@ def ConvertLoopsToAreas(level_loops):
 def MakeCutAreas(levels, areas):
     outer_bound = area.Area(areas[len(areas) - 1])
     outer_bound.Offset(-3.175)
-    cut_levels = [ kTop ]
+    cut_levels = [ config.top ]
     cut_areas = [ outer_bound ]
     for i, ar in enumerate(areas):
         for curve in outer_bound.getCurves():
@@ -181,7 +184,7 @@ def MakeLevelToolpaths(levels, areas):
     tps = []
     for i, ar in enumerate(areas):
         print "Making", i, "th toolpath at", levels[i]
-        tp = ar.MakePocketToolpath(3.175, -3.175, kStepOver, True, False, 0)
+        tp = ar.MakePocketToolpath(3.175, -3.175, config.step_over, True, False, 0)
         tps.append(tp)
         print " -- Got", len(tp), "curves"
     print "Out:", len(tps), "levels"
@@ -194,14 +197,14 @@ def MakeCompleteToolpath(tp_levels, tp_paths):
 
     levs = [ ]
     tps = [ ]
-    while cur_lev > kBottom - kVerticalTolerance:
+    while cur_lev > config.bottom - config.vertical_tolerance:
         levs.append(cur_lev)
         tps.append(cur_tp)
 
-        cur_lev -= kStepDown
+        cur_lev -= config.step_down
 
         if (next_levels_idx < len(tp_levels) and
-            cur_lev < tp_levels[next_levels_idx] + kVerticalTolerance):
+            cur_lev < tp_levels[next_levels_idx] + config.vertical_tolerance):
             cur_tp = tp_paths[next_levels_idx]
             cur_lev = tp_levels[next_levels_idx]
             next_levels_idx += 1
@@ -220,10 +223,10 @@ class FileWriter(object):
         self.f.close()
 
 def OutputGCode(lev, paths, fn):
-    nw.clearance_height = kClearanceHeight
-    nw.feed_height = kFeedHeight
-    nw.feed = kFeed
-    nw.plunge_feed = kPlungeFeed
+    nw.clearance_height = config.clearance_height
+    nw.feed_height = config.feed_height
+    nw.feed = config.feed
+    nw.plunge_feed = config.plunge_feed
 
     nw.writer = FileWriter(fn)
 
@@ -252,19 +255,24 @@ def OutputGCode(lev, paths, fn):
 
 if __name__ == "__main__": 
     print ocl.version()
+    if len(sys.argv) == 1:
+        print "Usage: autocut [config filename]"
+        sys.exit(1)
+
+    ReadConfig(sys.argv[1])
     
-    stl = camvtk.STLSurf(kFilename, color=camvtk.green)
+    stl = camvtk.STLSurf(config.in_filename, color=camvtk.green)
     stl.SetOpacity(0.2)
-    stl.RotateX(kRotate[0])
-    stl.RotateY(kRotate[1])
-    stl.RotateZ(kRotate[2])
+    stl.RotateX(config.rotate_x)
+    stl.RotateY(config.rotate_y)
+    stl.RotateZ(config.rotate_z)
     print "STL surface read"
     polydata = stl.src.GetOutput()
     s= ocl.STLSurf()
     camvtk.vtkPolyData2OCLSTL(polydata, s)
-    s.rotate(kRotate[0] * math.pi / 180,
-             kRotate[1] * math.pi / 180,
-             kRotate[2] * math.pi / 180)
+    s.rotate(config.rotate_x * math.pi / 180,
+             config.rotate_y * math.pi / 180,
+             config.rotate_z * math.pi / 180)
     bb = s.getBounds()
     sx = max(abs(bb[0]), abs(bb[1]))
     sy = max(abs(bb[1]), abs(bb[2]))
@@ -290,15 +298,15 @@ if __name__ == "__main__":
 
     # print "------------------------"
 
-    #    pocket_tps = [ MakePocket(loops, kStepOver) for loops in cut_loops ]
-    #    pocket_tps = [ MakePocket(loops, kStepOver) for loops in level_loops]
+    #    pocket_tps = [ MakePocket(loops, config.step_over) for loops in cut_loops ]
+    #    pocket_tps = [ MakePocket(loops, config.step_over) for loops in level_loops]
 
     level_areas = ConvertLoopsToAreas(level_loops)
     cut_levels, cut_areas = MakeCutAreas(essential_levels, level_areas)
     tp_levels, tp_paths = MakeLevelToolpaths(cut_levels, cut_areas)
     tp_levels, tp_paths = MakeCompleteToolpath(tp_levels, tp_paths)
 
-    OutputGCode(tp_levels, tp_paths, kOutputFileName)
+    OutputGCode(tp_levels, tp_paths, config.out_filename)
 
     myscreen = camvtk.VTKScreen()    
     myscreen.addActor(stl)

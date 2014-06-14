@@ -1,0 +1,19 @@
+package config;
+
+message Config {
+  optional float top = 1;
+  optional float bottom = 2;
+  optional float step_down = 3 [default = 1];
+  optional float step_over = 4 [default = 2];
+  optional float vertical_tolerance = 5 [default = 0.05];
+  optional float tool_diameter = 6 [default = 3.175];
+  optional float clearance_height = 7;
+  optional float feed_height = 8;
+  optional float feed = 9;
+  optional float plunge_feed = 10;
+  optional float rotate_x = 11 [default = 0];
+  optional float rotate_y = 12 [default = 0];
+  optional float rotate_z = 13 [default = 0];
+  optional string in_filename = 14;
+  optional string out_filename = 15;
+}
