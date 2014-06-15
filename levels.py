@@ -135,12 +135,11 @@ def GetWaterlines(s, essential_levels):
     cutter = ocl.CylCutter(config.tool_diameter, 20)
     level_loops = []
     for l in essential_levels:
-        print "level=", l
         wl = ocl.Waterline()
         wl.setSTL(s)
         wl.setCutter(cutter)
         wl.setSampling(0.02)
-        wl.setZ(l)
+        wl.setZ(l + config.vertical_tolerance)
         wl.run2()
         level_loops.append(wl.getLoops())
 
@@ -170,8 +169,8 @@ def ConvertLoopsToAreas(level_loops):
 def MakeCutAreas(levels, areas):
     outer_bound = area.Area(areas[len(areas) - 1])
     outer_bound.Offset(-3.175)
-    cut_levels = [ config.top ]
-    cut_areas = [ outer_bound ]
+    cut_levels = [ ]
+    cut_areas = [ ]
     for i, ar in enumerate(areas):
         for curve in outer_bound.getCurves():
             ar.append(curve)
@@ -191,9 +190,9 @@ def MakeLevelToolpaths(levels, areas):
     return levels, tps
 
 def MakeCompleteToolpath(tp_levels, tp_paths):
-    cur_lev = tp_levels[0]
+    cur_lev = config.top
     cur_tp = tp_paths[0]
-    next_levels_idx = 1
+    next_levels_idx = 0
 
     levs = [ ]
     tps = [ ]
@@ -205,8 +204,15 @@ def MakeCompleteToolpath(tp_levels, tp_paths):
 
         if (next_levels_idx < len(tp_levels) and
             cur_lev < tp_levels[next_levels_idx] + config.vertical_tolerance):
-            cur_tp = tp_paths[next_levels_idx]
             cur_lev = tp_levels[next_levels_idx]
+            if next_levels_idx + 1 < len(tp_levels):
+                cur_tp = tp_paths[next_levels_idx + 1]
+            else:
+                if cur_lev - config.step_down > config.bottom - config.vertical_tolerance:
+                    print "cur_lev=%f, stepdown=%f, bottom=%f" % (
+                        cur_lev, config.step_down,
+                        config.bottom - config.vertical_tolerance)
+                    sys.exit(1)
             next_levels_idx += 1
     return levs, tps
 
