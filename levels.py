@@ -191,40 +191,34 @@ def MakePocketToolpaths(levels, areas):
 def MakeWaterlineToolpaths(areas):
     return [ ar.getCurves() for ar in areas ]
 
-def FillInStepDowns(tp_levels, tp_paths):
+# Last level produced will be levels[len(levels)-1]
+def StepDownLevels(levels):
     cur_lev = config.top
-    cur_tp = tp_paths[0]
-    next_levels_idx = 0
+    cur_idx = 0
 
+    if config.machine_top or cur_lev < config.top - config.vertical_tolerance:
+        yield cur_lev, cur_idx
+
+    # Inv.: last level marked was cur_lev, and last index was cur_idx
+    while True:
+        if abs(cur_lev - levels[cur_idx]) < config.vertical_tolerance:
+            cur_idx += 1
+            if cur_idx >= len(levels):
+                break
+        cur_lev -= config.step_down
+        if cur_lev < levels[cur_idx] + config.vertical_tolerance:
+            cur_lev = levels[cur_idx]
+        if config.machine_top or cur_lev < config.top - config.vertical_tolerance:
+            yield cur_lev, cur_idx
+
+def FillInStepDowns(tp_levels, tp_paths):
     levs = [ ]
     tps = [ ]
-    while cur_lev > config.bottom - config.vertical_tolerance:
-        levs.append(cur_lev)
-        tps.append(cur_tp)
+    for lev, i in StepDownLevels(tp_levels):
+        levs.append(lev)
+        tps.append(tp_paths[i])
 
-        cur_lev -= config.step_down
-
-        if (next_levels_idx < len(tp_levels) and
-            cur_lev < tp_levels[next_levels_idx] + config.vertical_tolerance):
-            cur_lev = tp_levels[next_levels_idx]
-            if next_levels_idx + 1 < len(tp_levels):
-                cur_tp = tp_paths[next_levels_idx + 1]
-            else:
-                if cur_lev - config.step_down > config.bottom - config.vertical_tolerance:
-                    print "cur_lev=%f, stepdown=%f, bottom=%f" % (
-                        cur_lev, config.step_down,
-                        config.bottom - config.vertical_tolerance)
-                    sys.exit(1)
-            next_levels_idx += 1
-    if config.machine_top:
-        return levs, tps
-    ret_levs = []
-    ret_tps = []
-    for i, lev in enumerate(levs):
-        if lev < config.top - config.vertical_tolerance:
-            ret_levs.append(lev)
-            ret_tps.append(tps[i])
-    return ret_levs, ret_tps
+    return levs, tps
 
 class FileWriter(object):
     def __init__(self, fn):
