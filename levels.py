@@ -168,7 +168,7 @@ def ConvertLoopsToAreas(level_loops):
 
 def MakeCutAreas(levels, areas):
     outer_bound = area.Area(areas[len(areas) - 1])
-    outer_bound.Offset(-3.175)
+    outer_bound.Offset(-config.tool_diameter)
     cut_levels = [ ]
     cut_areas = [ ]
     for i, ar in enumerate(areas):
@@ -214,7 +214,15 @@ def MakeCompleteToolpath(tp_levels, tp_paths):
                         config.bottom - config.vertical_tolerance)
                     sys.exit(1)
             next_levels_idx += 1
-    return levs, tps
+    if config.machine_top:
+        return levs, tps
+    ret_levs = []
+    ret_tps = []
+    for i, lev in enumerate(levs):
+        if lev < config.top - config.vertical_tolerance:
+            ret_levs.append(lev)
+            ret_tps.append(tps[i])
+    return ret_levs, ret_tps
 
 class FileWriter(object):
     def __init__(self, fn):
@@ -292,21 +300,6 @@ if __name__ == "__main__":
         lengths = [str(len(loop)) for loop in level_loops[i]]
         print "L%02d@%smm: %s" % (i, lev, ",".join(lengths))
 
-    # cut_levels, cut_loops = PopulateIntermediateLevels(essential_levels, level_loops)
-    # print "------------------------"
-    # print "cut levels: %d, cut_loops: %d" % (len(cut_levels), len(cut_loops))
-    # for i, lev in enumerate(cut_levels):
-    #     lengths = [str(len(loop)) for loop in cut_loops[i]]
-    #     if i > 0:
-    #         print "L%02d@%smm: %s (d=%s)" % (i, lev, len(lengths), cut_levels[i-1]-lev)
-    #     else:
-    #         print "L%02d@%smm: %s" % (i, lev, len(lengths))
-
-    # print "------------------------"
-
-    #    pocket_tps = [ MakePocket(loops, config.step_over) for loops in cut_loops ]
-    #    pocket_tps = [ MakePocket(loops, config.step_over) for loops in level_loops]
-
     level_areas = ConvertLoopsToAreas(level_loops)
     cut_levels, cut_areas = MakeCutAreas(essential_levels, level_areas)
     tp_levels, tp_paths = MakeLevelToolpaths(cut_levels, cut_areas)
@@ -322,10 +315,6 @@ if __name__ == "__main__":
        print "Lev", i, "@", lev, ":", len(tp), "curves"
        for c in tp:
            drawCurve(myscreen, c, lev)
-    # all_loops = []
-    # for loops in level_loops:
-    #     all_loops += loops
-    # drawLoops(myscreen, all_loops)
     
     myscreen.camera.SetPosition(3, 23, 15)
     myscreen.camera.SetFocalPoint(5, 5, 0)

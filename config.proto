@@ -16,4 +16,5 @@ message Config {
   optional float rotate_z = 13 [default = 0];
   optional string in_filename = 14;
   optional string out_filename = 15;
+  optional bool machine_top = 16 [default = false];
 }
