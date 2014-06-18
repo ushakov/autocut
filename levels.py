@@ -108,10 +108,9 @@ def GetEssentialLevels(s):
             good += 1
         else:
             p = seq(t.getPoints())
-    print "good=", good, " total=", total
+    print "Triangles: good=", good, " total=", total, "percentage=", (good*100./total)
 
     levels.sort()
-    print levels
     essential_levels = []
     i = 0
     while i < len(levels):
@@ -119,7 +118,7 @@ def GetEssentialLevels(s):
         j = i+1
         while j < len(levels):
             l1 = levels[j]
-            if l1 > l0 + 0.1:
+            if l1 > l0 + config.vertical_tolerance:
                 break
             j += 1
         essential_levels.append(l0)
@@ -166,7 +165,7 @@ def ConvertLoopsToAreas(level_loops):
     print "Done processing"
     return ret
 
-def MakeCutAreas(levels, areas):
+def MakePocketAreas(levels, areas):
     outer_bound = area.Area(areas[len(areas) - 1])
     outer_bound.Offset(-config.tool_diameter)
     cut_levels = [ ]
@@ -179,7 +178,7 @@ def MakeCutAreas(levels, areas):
         cut_levels.append(levels[i])
     return cut_levels, cut_areas
 
-def MakeLevelToolpaths(levels, areas):
+def MakePocketToolpaths(levels, areas):
     tps = []
     for i, ar in enumerate(areas):
         print "Making", i, "th toolpath at", levels[i]
@@ -189,7 +188,10 @@ def MakeLevelToolpaths(levels, areas):
     print "Out:", len(tps), "levels"
     return levels, tps
 
-def MakeCompleteToolpath(tp_levels, tp_paths):
+def MakeWaterlineToolpaths(areas):
+    return [ ar.getCurves() for ar in areas ]
+
+def FillInStepDowns(tp_levels, tp_paths):
     cur_lev = config.top
     cur_tp = tp_paths[0]
     next_levels_idx = 0
@@ -293,25 +295,31 @@ if __name__ == "__main__":
     ms = max(sx, sy)
     print "STLSurf with ", s.size(), " triangles"
 
-    essential_levels = GetEssentialLevels(s)
-    level_loops = GetWaterlines(s, essential_levels)
+    levels = GetEssentialLevels(s)
 
-    for i, lev in enumerate(essential_levels):
-        lengths = [str(len(loop)) for loop in level_loops[i]]
+    print "Levels:", ", ".join([str(l) for l in levels])
+    loops = GetWaterlines(s, levels)
+
+    for i, lev in enumerate(levels):
+        lengths = [str(len(loop)) for loop in loops[i]]
         print "L%02d@%smm: %s" % (i, lev, ",".join(lengths))
 
-    level_areas = ConvertLoopsToAreas(level_loops)
-    cut_levels, cut_areas = MakeCutAreas(essential_levels, level_areas)
-    tp_levels, tp_paths = MakeLevelToolpaths(cut_levels, cut_areas)
-    tp_levels, tp_paths = MakeCompleteToolpath(tp_levels, tp_paths)
+    areas = ConvertLoopsToAreas(loops)
+    if config.waterline_only:
+        paths = MakeWaterlineToolpaths(areas)
+    else:
+        levels, areas = MakePocketAreas(levels, areas)
+        levels, paths = MakePocketToolpaths(levels, areas)
 
-    OutputGCode(tp_levels, tp_paths, config.out_filename)
+    levels, paths = FillInStepDowns(levels, paths)
+
+    OutputGCode(levels, paths, config.out_filename)
 
     myscreen = camvtk.VTKScreen()    
     myscreen.addActor(stl)
 
-    for i, lev in enumerate(tp_levels):
-       tp = tp_paths[i]
+    for i, lev in enumerate(levels):
+       tp = paths[i]
        print "Lev", i, "@", lev, ":", len(tp), "curves"
        for c in tp:
            drawCurve(myscreen, c, lev)
