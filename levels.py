@@ -134,6 +134,7 @@ def GetWaterlines(s, essential_levels):
     cutter = ocl.CylCutter(config.tool_diameter, 20)
     level_loops = []
     for l in essential_levels:
+        print "################## Making waterline at", l, "##############################"
         wl = ocl.Waterline()
         wl.setSTL(s)
         wl.setCutter(cutter)
@@ -290,6 +291,11 @@ if __name__ == "__main__":
     print "STLSurf with ", s.size(), " triangles"
 
     levels = GetEssentialLevels(s)
+    if config.oblique_approximation:
+        all_levels = []
+        for lev, idx in StepDownLevels(levels):
+            all_levels.append(lev)
+        levels = all_levels
 
     print "Levels:", ", ".join([str(l) for l in levels])
     loops = GetWaterlines(s, levels)
@@ -305,7 +311,10 @@ if __name__ == "__main__":
         levels, areas = MakePocketAreas(levels, areas)
         levels, paths = MakePocketToolpaths(levels, areas)
 
-    levels, paths = FillInStepDowns(levels, paths)
+    # If config.oblique_approximation is set, step-downs are already
+    # produced.
+    if not config.oblique_approximation:
+        levels, paths = FillInStepDowns(levels, paths)
 
     OutputGCode(levels, paths, config.out_filename)
 

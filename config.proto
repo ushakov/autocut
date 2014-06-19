@@ -18,4 +18,6 @@ message Config {
   optional string out_filename = 15;
   optional bool machine_top = 16 [default = false];
   optional bool waterline_only = 17 [default = false];
+  // Forces waterline computation at each step-down level.
+  optional bool oblique_approximation = 18 [default = false];
 }
