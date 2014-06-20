@@ -234,8 +234,8 @@ class FileWriter(object):
         self.f.close()
 
 def OutputGCode(lev, paths, fn):
-    nw.clearance_height = config.clearance_height
-    nw.feed_height = config.feed_height
+    nw.clearance_height = config.top + config.clearance_above_top
+    nw.feed_height = config.top + config.engage_above_top
     nw.feed = config.feed
     nw.plunge_feed = config.plunge_feed
 
