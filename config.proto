@@ -1,6 +1,8 @@
 package config;
 
-// This protocol buffer defines parameters for the toolpath generation.
+// This protocol buffer defines parameters for the toolpath
+// generation.  All length parameters are in mm if not stated
+// otherwise.
 message Config {
   // Z coordinate of top of the stock material.
   optional float top = 1;
