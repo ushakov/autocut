@@ -1,23 +1,49 @@
 package config;
 
+// This protocol buffer defines parameters for the toolpath generation.
 message Config {
+  // Z coordinate of top of the stock material.
   optional float top = 1;
+  // Lowest point to cut to.
   optional float bottom = 2;
+  // Each layer is not more than step_down deep (~0.5-1 tool
+  // diameter).
   optional float step_down = 3 [default = 1];
+  // Step over between passes in the same layer (usually ~40-60% of
+  // tool diameter).
   optional float step_over = 4 [default = 2];
-  optional float vertical_tolerance = 5 [default = 0.05];
+  // Tolerance for vertical computations.
+  optional float vertical_tolerance = 5 [default = 0.02];
+  // Diameter of the tool used.
   optional float tool_diameter = 6 [default = 3.175];
+  // Rapid moves are done this higher that 'top' (should be above any
+  // fixtures holding the stock).
   optional float clearance_above_top = 7 [ default = 4 ];
+  // At this distance above the 'top' the tool would start moving at
+  // cutting speeds.
   optional float engage_above_top = 8 [ default = 2 ];
+  // Feed (speed the tool moves), mm/s
   optional float feed = 9;
+  // Feed for vertical moves.
   optional float plunge_feed = 10;
+  // Rotate the STL part around x, y, or z axis before computation.
   optional float rotate_x = 11 [default = 0];
   optional float rotate_y = 12 [default = 0];
   optional float rotate_z = 13 [default = 0];
+  // Input file name (defaults to config file name with extension
+  // changed to .stl)
   optional string in_filename = 14;
+  // Output file name (defaults to config file name with extension
+  // changed to .ngc)
   optional string out_filename = 15;
+  // Whether the top of stock (at Z coordinate 'top') should be
+  // machined.
   optional bool machine_top = 16 [default = false];
+  // If true, will only machine surface of the part, otherwise will
+  // cut pocket.
   optional bool waterline_only = 17 [default = false];
-  // Forces waterline computation at each step-down level.
+  // Forces waterline computation at each step-down level (if false,
+  // only compute waterlines at levels where there is any horizontal
+  // face -- that's sufficient for 2.5D parts).
   optional bool oblique_approximation = 18 [default = false];
 }
