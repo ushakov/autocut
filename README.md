@@ -6,9 +6,9 @@ Note! This is prototype, don't expect it to work at all.
 Requirements:
 -------------
 
+* python-vtk libboost-python-dev python-protobuf
 * opencamlib (patched)
 * libarea (compiled with clipper)
-* google protobug library (including python libs)
 
 Comments
 --------
