@@ -33,6 +33,7 @@ The following patch should be applied:
 To do that, compile like this:
 
     make -f Makefileclipper
+    make -f Makefileclipper install
 
 ### Licensing
 
