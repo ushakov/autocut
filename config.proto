@@ -4,31 +4,31 @@ package config;
 // generation.  All length parameters are in mm if not stated
 // otherwise.
 message Config {
-  // Z coordinate of top of the stock material.
+  // Z coordinate of top of the stock material, mm.
   optional float top = 1;
-  // Lowest point to cut to.
+  // Lowest point to cut to, mm.
   optional float bottom = 2;
   // Each layer is not more than step_down deep (~0.5-1 tool
-  // diameter).
+  // diameter), mm.
   optional float step_down = 3 [default = 1];
   // Step over between passes in the same layer (usually ~40-60% of
-  // tool diameter).
+  // tool diameter), mm
   optional float step_over = 4 [default = 2];
-  // Tolerance for vertical computations.
+  // Tolerance for vertical computations, mm
   optional float vertical_tolerance = 5 [default = 0.02];
-  // Diameter of the tool used.
+  // Diameter of the tool used, mm
   optional float tool_diameter = 6 [default = 3.175];
   // Rapid moves are done this higher that 'top' (should be above any
-  // fixtures holding the stock).
+  // fixtures holding the stock), mm
   optional float clearance_above_top = 7 [ default = 4 ];
   // At this distance above the 'top' the tool would start moving at
-  // cutting speeds.
+  // cutting speeds, mm
   optional float engage_above_top = 8 [ default = 2 ];
-  // Feed (speed the tool moves), mm/s
+  // Feed (speed the tool moves, when cutting), mm/s
   optional float feed = 9;
-  // Feed for vertical moves.
+  // Feed for vertical moves, when cutting, mm/s
   optional float plunge_feed = 10;
-  // Rotate the STL part around x, y, or z axis before computation.
+  // Rotate the STL part around x, y, or z axis before computation, radians.
   optional float rotate_x = 11 [default = 0];
   optional float rotate_y = 12 [default = 0];
   optional float rotate_z = 13 [default = 0];
