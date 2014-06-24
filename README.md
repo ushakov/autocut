@@ -38,7 +38,7 @@ Checkout [libarea](https://github.com/Heeks/libarea) code with:
 
     git clone https://github.com/Heeks/libarea
 
-To do that, compile like this:
+Then, compile like this:
 
     make -f Makefileclipper
     make -f Makefileclipper install
