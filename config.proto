@@ -28,7 +28,7 @@ message Config {
   optional float feed = 9;
   // Feed for vertical moves, when cutting, mm/s
   optional float plunge_feed = 10;
-  // Rotate the STL part around x, y, or z axis before computation, radians.
+  // Rotate the STL part around x, y, or z axis before computation, degrees.
   optional float rotate_x = 11 [default = 0];
   optional float rotate_y = 12 [default = 0];
   optional float rotate_z = 13 [default = 0];
