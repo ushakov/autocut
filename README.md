@@ -15,6 +15,10 @@ Comments
 
 ### Opencamlib needs to be patched.
 
+Checkout [Opencamlib](https://github.com/aewallin/opencamlib) source code with:
+
+    git clone https://github.com/aewallin/opencamlib
+
 The following patch should be applied:
 
     --- a/src/ocl_geometry.cpp
@@ -30,7 +34,11 @@ The following patch should be applied:
 
 ### libarea should be compiled with clipper
 
-To do that, compile like this:
+Checkout [libarea](https://github.com/Heeks/libarea) code with:
+
+    git clone https://github.com/Heeks/libarea
+
+Then, compile like this:
 
     make -f Makefileclipper
     make -f Makefileclipper install
